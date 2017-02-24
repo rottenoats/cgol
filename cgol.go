@@ -1,15 +1,78 @@
 package main
 
 import (
-	"time"
-	"encoding/json"
 	"fmt"
+	_ "io/ioutil"
+	"os"
+	"strconv"
+	"time"
 )
 
 const (
 	MaxX int = 10
 	MaxY int = 10
 )
+
+type world struct {
+	*grid
+}
+
+func (w *world) load(filename string){
+
+	file,err := os.Open(filename)
+
+	if err != nil {
+		panic(err)
+	}
+	bytes := make([]byte, 1024)
+
+	//init with emptry grid
+	w.grid = &grid{}
+
+	x,y := 0,0
+
+	for {
+		count, err := file.Read(bytes)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		if count == 0 {
+			break
+		}
+
+		for _,byte := range bytes {
+			switch byte {
+			case 13:
+				y++
+				x = 0
+				fmt.Println("13 found, increasing: ",y)
+				continue
+			case 10:
+				continue
+			default:
+				if byte == 48 || byte == 49 {
+					fmt.Println("Recognized byte: ", byte)
+					n, err := strconv.Atoi(string(byte))
+
+					if err != nil {
+						panic(err)
+					}
+
+					c := cell{now: n, next: -1}
+					w.grid[y][x] = &c
+
+				} else {
+					fmt.Println("Unrecogniwed byte: ", byte)
+					break
+				}
+			}
+			x++
+
+		}
+	}
+	w.grid.show()
+}
 
 type grid [MaxX][MaxY] *cell
 type cell struct {
@@ -45,47 +108,33 @@ func (g *grid) state(x int, y int) int{
 	return g[nX][y].now + g[nX][nY].now + g[nX][pY].now + g[pX][y].now + g[pX][nY].now + g[pX][pY].now + g[x][nY].now + g[x][pY].now
 }
 
-
-func config(res *response) grid{
-	world := grid{}
-	for y:=0;y<MaxY;y++{
-		for x:=0;x<MaxX;x++{
-			world[x][y] = &cell{now:0,next:-1,}
+func (g *grid) show(){
+	fmt.Println("Showing...")
+	for y:=0; y<MaxY;y++{
+		for x:=0; x<MaxX;x++{
+			fmt.Print(g[y][x].now)
 		}
+		fmt.Println()
 	}
-
-	for _,e := range *res {
-		world[e[0]][e[1]].next = 1
-	}
-
-	return world
 }
 
-type response [][2]int
-
 func main(){
-	res := response{}
-	data := `[
-		[5,5],
-		[6,5],
-		[7,5]
-	]`
 
-	json.Unmarshal([]byte(data), &res)
-	world := config(&res)
+	w := world{}
+	w.load("./w1")
 	for {
 		t := time.Now()
 		for y:=0;y<MaxY;y++{
 			for x:=0;x<MaxX;x++{
-				world.prepare(x, y)
+				w.prepare(x, y)
 			}
 		}
 		for y:=0;y<MaxY;y++{
 			for x:=0;x<MaxX;x++{
-				world.update(x, y)
+				w.update(x, y)
 			}
 		}
-		fmt.Println(world)
+		w.show()
 		elapse := float64((1000/10)) - time.Since(t).Seconds()
 		time.Sleep(time.Duration(elapse) * time.Millisecond)
 	}
